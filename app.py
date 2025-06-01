@@ -176,6 +176,9 @@ with block:
         with gr.Column(scale=1):
             gr.Examples(
                 examples=[
+                    ["examples/rabbit.png"],
+                    ["examples/robot.png"],
+                    ["examples/teapot.png"],
                     ["examples/barrel.png"],
                     ["examples/cactus.png"],
                     ["examples/cyan_car.png"],
