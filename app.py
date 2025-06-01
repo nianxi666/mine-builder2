@@ -166,7 +166,7 @@ with block:
         with gr.Column(scale=4):
             with gr.Tab("3D Model"):
                 # glb file
-                output_model = gr.Model3D(label="Geometry", height=380)
+                output_model = gr.Model3D(label="Geometry", height=512)
 
             with gr.Tab("Input Image"):
                 # background removed image
