@@ -1,0 +1,16 @@
+torch==2.5.1  # should be installed by HF
+torchvision==0.20.1
+numpy
+trimesh
+# meshiki # we don't use it for flow inference
+fpsample
+einops
+onnxruntime
+rembg
+kiui
+pymcubes
+tqdm
+opencv-python
+ninja
+pymeshlab
+transformers
