@@ -162,7 +162,7 @@ with block:
             with gr.Row():
                 # input image
                 input_image = gr.Image(label="Input Image", type="numpy")
-                seg_image = gr.Image(label="Segmentation Result", type="numpy", format="png", interactive=False)
+                seg_image = gr.Image(label="Segmentation Result", type="numpy", format="png", interactive=False, image_mode="RGBA")
             with gr.Accordion("Settings", open=True):
                 # inference steps
                 num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=30)
