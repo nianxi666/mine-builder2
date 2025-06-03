@@ -287,10 +287,10 @@ def postprocess_mesh(mesh: trimesh.Trimesh, decimate_target=100000):
 
     if vertices.shape[0] > 0 and triangles.shape[0] > 0:
         vertices, triangles = clean_mesh(vertices, triangles, remesh=False, min_f=25, min_d=5)
-    if triangles.shape[0] > decimate_target:
+    if decimate_target > 0 and triangles.shape[0] > decimate_target:
         vertices, triangles = decimate_mesh(vertices, triangles, decimate_target, optimalplacement=False)
-    if vertices.shape[0] > 0 and triangles.shape[0] > 0:
-        vertices, triangles = clean_mesh(vertices, triangles, remesh=False, min_f=25, min_d=5)
+        if vertices.shape[0] > 0 and triangles.shape[0] > 0:
+            vertices, triangles = clean_mesh(vertices, triangles, remesh=False, min_f=25, min_d=5)
 
     mesh.vertices = vertices
     mesh.faces = triangles

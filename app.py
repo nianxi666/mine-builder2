@@ -62,7 +62,7 @@ model.load_state_dict(ckpt_dict, strict=True)
 
 # process function
 @spaces.GPU(duration=120)
-def process(input_image, input_num_steps=30, input_cfg_scale=7.5, grid_res=384, seed=42, randomize_seed=True):
+def process(input_image, num_steps=30, cfg_scale=7.5, grid_res=384, seed=42, randomize_seed=True, simplify_mesh=False, target_num_faces=100000):
 
     # seed
     if randomize_seed:
@@ -89,7 +89,7 @@ def process(input_image, input_num_steps=30, input_cfg_scale=7.5, grid_res=384, 
     data = {"cond_images": image_tensor}
 
     with torch.inference_mode():
-        results = model(data, num_steps=input_num_steps, cfg_scale=input_cfg_scale)
+        results = model(data, num_steps=num_steps, cfg_scale=cfg_scale)
 
     latent = results["latent"]
 
@@ -102,16 +102,19 @@ def process(input_image, input_num_steps=30, input_cfg_scale=7.5, grid_res=384, 
         results_part0 = model.vae(data_part0, resolution=grid_res)
         results_part1 = model.vae(data_part1, resolution=grid_res)
 
+    if not simplify_mesh:
+        target_num_faces = -1
+
     vertices, faces = results_part0["meshes"][0]
     mesh_part0 = trimesh.Trimesh(vertices, faces)
     mesh_part0.vertices = mesh_part0.vertices @ TRIMESH_GLB_EXPORT.T
-    mesh_part0 = postprocess_mesh(mesh_part0, 5e4)
+    mesh_part0 = postprocess_mesh(mesh_part0, target_num_faces)
     parts = mesh_part0.split(only_watertight=False)
 
     vertices, faces = results_part1["meshes"][0]
     mesh_part1 = trimesh.Trimesh(vertices, faces)
     mesh_part1.vertices = mesh_part1.vertices @ TRIMESH_GLB_EXPORT.T
-    mesh_part1 = postprocess_mesh(mesh_part1, 5e4)
+    mesh_part1 = postprocess_mesh(mesh_part1, target_num_faces)
     parts.extend(mesh_part1.split(only_watertight=False))
 
     # split connected components and assign different colors
@@ -147,23 +150,26 @@ with block:
     gr.Markdown(_DESCRIPTION)
 
     with gr.Row():
-        with gr.Column(scale=2):
+        with gr.Column(scale=4):
             # input image
             input_image = gr.Image(label="Image", type='pil')
             # inference steps
-            input_num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=30)
+            num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=30)
             # cfg scale
-            input_cfg_scale = gr.Slider(label="CFG scale", minimum=2, maximum=10, step=0.1, value=7.5)
+            cfg_scale = gr.Slider(label="CFG scale", minimum=2, maximum=10, step=0.1, value=7.0)
             # grid resolution
             input_grid_res = gr.Slider(label="Grid resolution", minimum=256, maximum=512, step=1, value=384)
             # random seed
             seed = gr.Slider(label="Random seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
             randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
+            # simplify mesh
+            simplify_mesh = gr.Checkbox(label="Simplify mesh", value=False)
+            target_num_faces = gr.Slider(label="Face number", minimum=10000, maximum=1000000, step=1000, value=100000)
             # gen button
             button_gen = gr.Button("Generate")
 
 
-        with gr.Column(scale=4):
+        with gr.Column(scale=8):
             with gr.Tab("3D Model"):
                 # glb file
                 output_model = gr.Model3D(label="Geometry", height=512)
@@ -190,6 +196,6 @@ with block:
                 cache_examples=False,
             )
 
-        button_gen.click(process, inputs=[input_image, input_num_steps, input_cfg_scale, input_grid_res, seed, randomize_seed], outputs=[seed, output_image, output_model])
+        button_gen.click(process, inputs=[input_image, num_steps, cfg_scale, input_grid_res, seed, randomize_seed, simplify_mesh, target_num_faces], outputs=[seed, output_image, output_model])
 
 block.launch()
