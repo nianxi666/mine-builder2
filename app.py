@@ -60,32 +60,40 @@ model = Model(model_config).eval().cuda().bfloat16()
 ckpt_dict = torch.load(flow_ckpt_path, weights_only=True)
 model.load_state_dict(ckpt_dict, strict=True)
 
-# process function
-@spaces.GPU(duration=120)
-def process(input_image, num_steps=30, cfg_scale=7.5, grid_res=384, seed=42, randomize_seed=True, simplify_mesh=False, target_num_faces=100000):
-
-    # seed
+# get random seed
+def get_random_seed(randomize_seed, seed):
     if randomize_seed:
         seed = np.random.randint(0, MAX_SEED)
-    kiui.seed_everything(seed)
+    return seed
 
-    # output path
-    os.makedirs("output", exist_ok=True)
-    output_glb_path = f"output/partpacker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.glb"
-
-    # input image
+# process image
+@spaces.GPU(duration=10)
+def process_image(input_image):
     input_image = np.array(input_image) # uint8
-
     # bg removal if there is no alpha channel
     if input_image.shape[-1] == 3:
         input_image = rembg.remove(input_image, session=bg_remover)  # [H, W, 4]
     mask = input_image[..., -1] > 0
     image = recenter_foreground(input_image, mask, border_ratio=0.1)
     image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_LINEAR)
-    image = image.astype(np.float32) / 255.0
-    image = image[..., :3] * image[..., 3:4] + (1 - image[..., 3:4])  # white background
+    return image
 
+# process generation
+@spaces.GPU(duration=120)
+def process_3d(input_image, num_steps=30, cfg_scale=7.5, grid_res=384, seed=42, simplify_mesh=False, target_num_faces=100000):
+
+    # seed
+    kiui.seed_everything(seed)
+
+    # output path
+    os.makedirs("output", exist_ok=True)
+    output_glb_path = f"output/partpacker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.glb"
+
+    # input image (assume processed to RGBA uint8)
+    image = input_image.astype(np.float32) / 255.0
+    image = image[..., :3] * image[..., 3:4] + (1 - image[..., 3:4])  # white background
     image_tensor = torch.from_numpy(image).permute(2, 0, 1).contiguous().unsqueeze(0).float().cuda()
+
     data = {"cond_images": image_tensor}
 
     with torch.inference_mode():
@@ -126,7 +134,7 @@ def process(input_image, num_steps=30, cfg_scale=7.5, grid_res=384, seed=42, ran
     # export the whole mesh
     mesh.export(output_glb_path)
 
-    return seed, image, output_glb_path
+    return output_glb_path
 
 # gradio UI
 
@@ -145,57 +153,64 @@ _DESCRIPTION = '''
 block = gr.Blocks(title=_TITLE).queue()
 with block:
     with gr.Row():
-        with gr.Column(scale=1):
+        with gr.Column():
             gr.Markdown('# ' + _TITLE)
     gr.Markdown(_DESCRIPTION)
 
     with gr.Row():
-        with gr.Column(scale=4):
-            # input image
-            input_image = gr.Image(label="Image", type='pil')
-            # inference steps
-            num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=30)
-            # cfg scale
-            cfg_scale = gr.Slider(label="CFG scale", minimum=2, maximum=10, step=0.1, value=7.0)
-            # grid resolution
-            input_grid_res = gr.Slider(label="Grid resolution", minimum=256, maximum=512, step=1, value=384)
-            # random seed
-            seed = gr.Slider(label="Random seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
-            randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
-            # simplify mesh
-            simplify_mesh = gr.Checkbox(label="Simplify mesh", value=False)
-            target_num_faces = gr.Slider(label="Face number", minimum=10000, maximum=1000000, step=1000, value=100000)
-            # gen button
-            button_gen = gr.Button("Generate")
-
-
-        with gr.Column(scale=8):
-            with gr.Tab("3D Model"):
-                # glb file
-                output_model = gr.Model3D(label="Geometry", height=512)
-
-            with gr.Tab("Input Image"):
-                # background removed image
-                output_image = gr.Image(interactive=False, show_label=False)
-                
+        with gr.Column(scale=1):
+            with gr.Row():
+                # input image
+                input_image = gr.Image(label="Input Image", type="filepath")
+                seg_image = gr.Image(label="Segmentation Result", type="numpy", format="png", interactive=False)
+            with gr.Accordion("Settings", open=True):
+                # inference steps
+                num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=30)
+                # cfg scale
+                cfg_scale = gr.Slider(label="CFG scale", minimum=2, maximum=10, step=0.1, value=7.0)
+                # grid resolution
+                input_grid_res = gr.Slider(label="Grid resolution", minimum=256, maximum=512, step=1, value=384)
+                # random seed
+                with gr.Row():
+                    randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
+                    seed = gr.Slider(label="Seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
+                # simplify mesh
+                with gr.Row():
+                    simplify_mesh = gr.Checkbox(label="Simplify mesh", value=False)
+                    target_num_faces = gr.Slider(label="Face number", minimum=10000, maximum=1000000, step=1000, value=100000)
+                # gen button
+                button_gen = gr.Button("Generate")
 
         with gr.Column(scale=1):
-            gr.Examples(
-                examples=[
-                    ["examples/rabbit.png"],
-                    ["examples/robot.png"],
-                    ["examples/teapot.png"],
-                    ["examples/barrel.png"],
-                    ["examples/cactus.png"],
-                    ["examples/cyan_car.png"],
-                    ["examples/pickup.png"],
-                    ["examples/swivelchair.png"],
-                    ["examples/warhammer.png"],
-                ],
-                inputs=[input_image],
-                cache_examples=False,
-            )
+            # glb file
+            output_model = gr.Model3D(label="Geometry", height=512)
 
-        button_gen.click(process, inputs=[input_image, num_steps, cfg_scale, input_grid_res, seed, randomize_seed, simplify_mesh, target_num_faces], outputs=[seed, output_image, output_model])
+            
+    with gr.Row():
+        gr.Examples(
+            examples=[
+                ["examples/rabbit.png"],
+                ["examples/robot.png"],
+                ["examples/teapot.png"],
+                ["examples/barrel.png"],
+                ["examples/cactus.png"],
+                ["examples/cyan_car.png"],
+                ["examples/pickup.png"],
+                ["examples/swivelchair.png"],
+                ["examples/warhammer.png"],
+            ],
+            fn=process_image,  # still need to click button_gen to get the 3d
+            inputs=[input_image],
+            outputs=[seg_image],
+            cache_examples=False,
+        )
+
+    button_gen.click(
+        process_image, inputs=[input_image], outputs=[seg_image]
+    ).then(
+        get_random_seed, inputs=[randomize_seed, seed], outputs=[seed]
+    ).then(
+        process_3d, inputs=[seg_image, num_steps, cfg_scale, input_grid_res, seed, simplify_mesh, target_num_faces], outputs=[output_model]
+    )
 
 block.launch()
