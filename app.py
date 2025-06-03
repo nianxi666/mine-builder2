@@ -67,7 +67,6 @@ def get_random_seed(randomize_seed, seed):
     return seed
 
 # process image
-@spaces.GPU(duration=10)
 def process_image(input_image):
     input_image = np.array(input_image) # uint8
     # bg removal if there is no alpha channel
@@ -75,12 +74,12 @@ def process_image(input_image):
         input_image = rembg.remove(input_image, session=bg_remover)  # [H, W, 4]
     mask = input_image[..., -1] > 0
     image = recenter_foreground(input_image, mask, border_ratio=0.1)
-    image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_LINEAR)
+    image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_AREA)
     return image
 
 # process generation
-@spaces.GPU(duration=120)
-def process_3d(input_image, num_steps=30, cfg_scale=7.5, grid_res=384, seed=42, simplify_mesh=False, target_num_faces=100000):
+@spaces.GPU(duration=60)
+def process_3d(input_image, num_steps=50, cfg_scale=7.0, grid_res=384, seed=42, simplify_mesh=False, target_num_faces=100000):
 
     # seed
     kiui.seed_everything(seed)
@@ -90,8 +89,10 @@ def process_3d(input_image, num_steps=30, cfg_scale=7.5, grid_res=384, seed=42, 
     output_glb_path = f"output/partpacker_{datetime.now().strftime('%Y%m%d_%H%M%S')}.glb"
 
     # input image (assume processed to RGBA uint8)
-    image = input_image.astype(np.float32) / 255.0
+    image = np.array(input_image)
+    image = image.astype(np.float32) / 255.0
     image = image[..., :3] * image[..., 3:4] + (1 - image[..., 3:4])  # white background
+    image = (image * 255).astype(np.uint8)
     image_tensor = torch.from_numpy(image).permute(2, 0, 1).contiguous().unsqueeze(0).float().cuda()
 
     data = {"cond_images": image_tensor}
@@ -161,11 +162,11 @@ with block:
         with gr.Column(scale=1):
             with gr.Row():
                 # input image
-                input_image = gr.Image(label="Input Image", type="numpy")
-                seg_image = gr.Image(label="Segmentation Result", type="numpy", format="png", interactive=False, image_mode="RGBA")
+                input_image = gr.Image(label="Input Image")
+                seg_image = gr.Image(label="Segmentation Result", type="pil", format="png", interactive=False, image_mode="RGBA")
             with gr.Accordion("Settings", open=True):
                 # inference steps
-                num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=30)
+                num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=50)
                 # cfg scale
                 cfg_scale = gr.Slider(label="CFG scale", minimum=2, maximum=10, step=0.1, value=7.0)
                 # grid resolution
