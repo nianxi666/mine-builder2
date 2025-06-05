@@ -68,11 +68,14 @@ def get_random_seed(randomize_seed, seed):
 
 # process image
 @spaces.GPU(duration=10)
-def process_image(image):
-    image = np.array(image) # uint8
+def process_image(image_path):
+    image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_AREA)
-    # bg removal if there is no alpha channel
-    if image.shape[-1] == 3:
+    if image.shape[-1] == 4:
+        image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
+    else:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        # bg removal if there is no alpha channel
         image = rembg.remove(image, session=bg_remover)  # [H, W, 4]
     mask = image[..., -1] > 0
     image = recenter_foreground(image, mask, border_ratio=0.1)
@@ -163,7 +166,7 @@ with block:
         with gr.Column(scale=1):
             with gr.Row():
                 # input image
-                input_image = gr.Image(label="Input Image", type="numpy")
+                input_image = gr.Image(label="Input Image", type="file_path") # use file_path and load manually
                 seg_image = gr.Image(label="Segmentation Result", type="numpy", interactive=False)
             with gr.Accordion("Settings", open=True):
                 # inference steps
