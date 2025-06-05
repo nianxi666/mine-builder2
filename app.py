@@ -68,14 +68,17 @@ def get_random_seed(randomize_seed, seed):
 
 # process image
 @spaces.GPU(duration=10)
-def process_image(input_image):
-    input_image = np.array(input_image) # uint8
+def process_image(image):
+    image = np.array(image) # uint8
+    image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_AREA)
     # bg removal if there is no alpha channel
-    if input_image.shape[-1] == 3:
-        input_image = rembg.remove(input_image, session=bg_remover)  # [H, W, 4]
-    mask = input_image[..., -1] > 0
-    image = recenter_foreground(input_image, mask, border_ratio=0.1)
-    image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_LINEAR)
+    if image.shape[-1] == 3:
+        image = rembg.remove(image, session=bg_remover)  # [H, W, 4]
+    mask = image[..., -1] > 0
+    image = recenter_foreground(image, mask, border_ratio=0.1)
+    image = image.astype(np.float32) / 255.0
+    image = image[..., :3] * image[..., 3:4] + (1 - image[..., 3:4])  # white background
+    image = (image * 255).astype(np.uint8)
     return image
 
 # process generation
@@ -91,7 +94,6 @@ def process_3d(input_image, num_steps=50, cfg_scale=7, grid_res=384, seed=42, si
 
     # input image (assume processed to RGBA uint8)
     image = input_image.astype(np.float32) / 255.0
-    image = image[..., :3] * image[..., 3:4] + (1 - image[..., 3:4])  # white background
     image_tensor = torch.from_numpy(image).permute(2, 0, 1).contiguous().unsqueeze(0).float().cuda()
 
     data = {"cond_images": image_tensor}
@@ -162,7 +164,7 @@ with block:
             with gr.Row():
                 # input image
                 input_image = gr.Image(label="Input Image", type="numpy")
-                seg_image = gr.Image(label="Segmentation Result", type="numpy", format="png", interactive=False, image_mode="RGBA")
+                seg_image = gr.Image(label="Segmentation Result", type="numpy", interactive=False)
             with gr.Accordion("Settings", open=True):
                 # inference steps
                 num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=50)

@@ -40,11 +40,12 @@ def recenter_foreground(image, mask, border_ratio: float = 0.1):
     H, W, C = image.shape
     size = max(H, W)
 
-    # default to white bg if rgb, but use 0 if rgba
-    if C == 3:
-        result = np.ones((size, size, C), dtype=np.float32)
-    else:
-        result = np.zeros((size, size, C), dtype=np.float32)
+    # default to white bg
+    result = np.ones((size, size, C), dtype=np.float32)
+    
+    # if rgba, set alpha to 0
+    if C == 4:
+        result[..., -1] = 0
 
     coords = np.nonzero(mask)
     x_min, x_max = coords[0].min(), coords[0].max()
