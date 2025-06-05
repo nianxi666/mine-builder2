@@ -166,7 +166,7 @@ with block:
         with gr.Column(scale=1):
             with gr.Row():
                 # input image
-                input_image = gr.Image(label="Input Image", type="file_path") # use file_path and load manually
+                input_image = gr.Image(label="Input Image", type="filepath") # use file_path and load manually
                 seg_image = gr.Image(label="Segmentation Result", type="numpy", interactive=False)
             with gr.Accordion("Settings", open=True):
                 # inference steps
