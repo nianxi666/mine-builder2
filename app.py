@@ -79,9 +79,6 @@ def process_image(image_path):
     mask = image[..., -1] > 0
     image = recenter_foreground(image, mask, border_ratio=0.1)
     image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_AREA)
-    image = image.astype(np.float32) / 255.0
-    image = image[..., :3] * image[..., 3:4] + (1 - image[..., 3:4])  # white background
-    image = (image * 255).astype(np.uint8)
     return image
 
 # process generation
@@ -97,6 +94,7 @@ def process_3d(input_image, num_steps=50, cfg_scale=7, grid_res=384, seed=42, si
 
     # input image (assume processed to RGBA uint8)
     image = input_image.astype(np.float32) / 255.0
+    image = image[..., :3] * image[..., 3:4] + (1 - image[..., 3:4])  # white background
     image_tensor = torch.from_numpy(image).permute(2, 0, 1).contiguous().unsqueeze(0).float().cuda()
 
     data = {"cond_images": image_tensor}
