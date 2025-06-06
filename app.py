@@ -70,7 +70,6 @@ def get_random_seed(randomize_seed, seed):
 @spaces.GPU(duration=10)
 def process_image(image_path):
     image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-    image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_AREA)
     if image.shape[-1] == 4:
         image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
     else:
@@ -79,6 +78,7 @@ def process_image(image_path):
         image = rembg.remove(image, session=bg_remover)  # [H, W, 4]
     mask = image[..., -1] > 0
     image = recenter_foreground(image, mask, border_ratio=0.1)
+    image = cv2.resize(image, (518, 518), interpolation=cv2.INTER_AREA)
     image = image.astype(np.float32) / 255.0
     image = image[..., :3] * image[..., 3:4] + (1 - image[..., 3:4])  # white background
     image = (image * 255).astype(np.uint8)
@@ -166,8 +166,8 @@ with block:
         with gr.Column(scale=1):
             with gr.Row():
                 # input image
-                input_image = gr.Image(label="Input Image", type="filepath") # use file_path and load manually
-                seg_image = gr.Image(label="Segmentation Result", type="numpy", interactive=False)
+                input_image = gr.Image(label="Input Image", type="filepath", image_mode="RGBA") # use file_path and load manually
+                seg_image = gr.Image(label="Segmentation Result", type="numpy", interactive=False, image_mode="RGBA")
             with gr.Accordion("Settings", open=True):
                 # inference steps
                 num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=50)
