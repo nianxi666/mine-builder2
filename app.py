@@ -82,7 +82,7 @@ def process_image(image_path):
     return image
 
 # process generation
-@spaces.GPU(duration=60)
+@spaces.GPU(duration=90)
 def process_3d(input_image, num_steps=50, cfg_scale=7, grid_res=384, seed=42, simplify_mesh=False, target_num_faces=100000):
 
     # seed
@@ -164,7 +164,7 @@ with block:
         with gr.Column(scale=1):
             with gr.Row():
                 # input image
-                input_image = gr.Image(label="Input Image", type="filepath", image_mode="RGBA") # use file_path and load manually
+                input_image = gr.Image(label="Input Image", type="filepath") # use file_path and load manually
                 seg_image = gr.Image(label="Segmentation Result", type="numpy", interactive=False, image_mode="RGBA")
             with gr.Accordion("Settings", open=True):
                 # inference steps
