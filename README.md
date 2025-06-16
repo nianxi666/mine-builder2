@@ -11,4 +11,6 @@ license: other
 short_description: Part-level image-to-3D generation.
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+## Reference(s)
+[Code](https://github.com/NVlabs/PartPacker)  
+[Paper](https://arxiv.org/abs/2506.09980)  
