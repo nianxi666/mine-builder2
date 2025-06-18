@@ -216,4 +216,4 @@ with block:
         process_3d, inputs=[seg_image, num_steps, cfg_scale, input_grid_res, seed, simplify_mesh, target_num_faces], outputs=[output_model]
     )
 
-block.launch()
+block.launch(ssr_mode=False)
