@@ -6,22 +6,6 @@ import trimesh
 import torch
 import rembg
 from datetime import datetime
-import subprocess
-import gradio as gr
-
-try:
-    # running on Hugging Face Spaces
-    import spaces
-
-except ImportError:
-    # running locally, use a dummy space
-    class spaces:
-        class GPU:
-            def __init__(self, duration=60):
-                self.duration = duration
-            def __call__(self, func):
-                return func
-
 
 from flow.model import Model
 from flow.configs.schema import ModelConfig
@@ -67,7 +51,6 @@ def get_random_seed(randomize_seed, seed):
     return seed
 
 # process image
-@spaces.GPU(duration=10)
 def process_image(image_path):
     image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if image.shape[-1] == 4:
@@ -82,8 +65,7 @@ def process_image(image_path):
     return image
 
 # process generation
-@spaces.GPU(duration=90)
-def process_3d(input_image, num_steps=50, cfg_scale=7, grid_res=384, seed=42, simplify_mesh=False, target_num_faces=100000):
+def process_3d(input_image, num_steps, cfg_scale, grid_res, seed, simplify_mesh, target_num_faces):
 
     # seed
     kiui.seed_everything(seed)
@@ -139,81 +121,37 @@ def process_3d(input_image, num_steps=50, cfg_scale=7, grid_res=384, seed=42, si
 
     return output_glb_path
 
-# gradio UI
+def main():
+    # --- Inference Parameters ---
+    # You can change these parameters directly in the code
+    input_image_path = "examples/rabbit.png"
+    num_steps = 50
+    cfg_scale = 7.0
+    grid_res = 384
+    randomize_seed = True
+    seed = 42
+    simplify_mesh = False
+    target_num_faces = 100000
+    # --------------------------
 
-_TITLE = '''PartPacker: Efficient Part-level 3D Object Generation via Dual Volume Packing'''
+    print(f"Processing image: {input_image_path}")
+    processed_image = process_image(input_image_path)
 
-_DESCRIPTION = '''
-<div>
-<a style="display:inline-block" href="https://research.nvidia.com/labs/dir/partpacker/"><img src='https://img.shields.io/badge/public_website-8A2BE2'></a>
-<a style="display:inline-block; margin-left: .5em" href="https://github.com/NVlabs/PartPacker"><img src='https://img.shields.io/github/stars/NVlabs/PartPacker?style=social'/></a>
-</div>
+    seed = get_random_seed(randomize_seed, seed)
+    print(f"Using seed: {seed}")
 
-* Each part is visualized with a random color, and can be separated in the GLB file.
-* If the output is not satisfactory, please try different random seeds!
-'''
-
-block = gr.Blocks(title=_TITLE).queue()
-with block:
-    with gr.Row():
-        with gr.Column():
-            gr.Markdown('# ' + _TITLE)
-    gr.Markdown(_DESCRIPTION)
-
-    with gr.Row():
-        with gr.Column(scale=1):
-            with gr.Row():
-                # input image
-                input_image = gr.Image(label="Input Image", type="filepath") # use file_path and load manually
-                seg_image = gr.Image(label="Segmentation Result", type="numpy", interactive=False, image_mode="RGBA")
-            with gr.Accordion("Settings", open=True):
-                # inference steps
-                num_steps = gr.Slider(label="Inference steps", minimum=1, maximum=100, step=1, value=50)
-                # cfg scale
-                cfg_scale = gr.Slider(label="CFG scale", minimum=2, maximum=10, step=0.1, value=7.0)
-                # grid resolution
-                input_grid_res = gr.Slider(label="Grid resolution", minimum=256, maximum=512, step=1, value=384)
-                # random seed
-                with gr.Row():
-                    randomize_seed = gr.Checkbox(label="Randomize seed", value=True)
-                    seed = gr.Slider(label="Seed", minimum=0, maximum=MAX_SEED, step=1, value=0)
-                # simplify mesh
-                with gr.Row():
-                    simplify_mesh = gr.Checkbox(label="Simplify mesh", value=False)
-                    target_num_faces = gr.Slider(label="Face number", minimum=10000, maximum=1000000, step=1000, value=100000)
-                # gen button
-                button_gen = gr.Button("Generate")
-
-        with gr.Column(scale=1):
-            # glb file
-            output_model = gr.Model3D(label="Geometry", height=512)
-
-            
-    with gr.Row():
-        gr.Examples(
-            examples=[
-                ["examples/rabbit.png"],
-                ["examples/robot.png"],
-                ["examples/teapot.png"],
-                ["examples/barrel.png"],
-                ["examples/cactus.png"],
-                ["examples/cyan_car.png"],
-                ["examples/pickup.png"],
-                ["examples/swivelchair.png"],
-                ["examples/warhammer.png"],
-            ],
-            fn=process_image,  # still need to click button_gen to get the 3d
-            inputs=[input_image],
-            outputs=[seg_image],
-            cache_examples=False,
-        )
-
-    button_gen.click(
-        process_image, inputs=[input_image], outputs=[seg_image]
-    ).then(
-        get_random_seed, inputs=[randomize_seed, seed], outputs=[seed]
-    ).then(
-        process_3d, inputs=[seg_image, num_steps, cfg_scale, input_grid_res, seed, simplify_mesh, target_num_faces], outputs=[output_model]
+    print("Generating 3D model...")
+    output_path = process_3d(
+        processed_image,
+        num_steps,
+        cfg_scale,
+        grid_res,
+        seed,
+        simplify_mesh,
+        target_num_faces,
     )
 
-block.launch(ssr_mode=False)
+    print(f"3D model saved to: {output_path}")
+
+if __name__ == "__main__":
+    main()
