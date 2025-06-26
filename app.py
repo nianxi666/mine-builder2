@@ -52,10 +52,17 @@ def get_random_seed(randomize_seed, seed):
 
 # process image
 def process_image(image_path):
+    if not os.path.exists(image_path):
+        raise FileNotFoundError(f"Image file not found at: {image_path}")
     image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
-    if image.shape[-1] == 4:
+    if image is None:
+        raise ValueError(f"Failed to read image file at: {image_path}. It might be corrupted or in an unsupported format.")
+
+    if len(image.shape) == 3 and image.shape[-1] == 4:
         image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGBA)
     else:
+        if len(image.shape) == 2:
+            image = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         # bg removal if there is no alpha channel
         image = rembg.remove(image, session=bg_remover)  # [H, W, 4]
